@@ -36,16 +36,16 @@ jobs:
    - name: Build, tag, and push image to Amazon ECR
      id: build-image
      env:
-      
+      ECR_REGISTRY: ${{ steps.login-ecr.outputs.registry }}
       ECR_REPOSITORY: ${{ secrets.ECR_REPOSITORY_NAME }}
       IMAGE_TAG: latest
      run: |
        # Build a docker container and
        # push it to ECR so that it can
        # be deployed to ECS.
-       docker build -t $ECR_REPOSITORY:$IMAGE_TAG .
-       docker push $ECR_REPOSITORY:$IMAGE_TAG
-       
+       docker build -t $ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG .
+       docker push $ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG
+       echo "::set-output name=image::$ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG" 
 
  Continuous-Deployment:
   needs: build-and-push-ecr-image
@@ -69,15 +69,17 @@ jobs:
     uses: aws-actions/amazon-ecr-login@v1
     
   - name: Pull docker image
-    env: 
-        AWS_REPO: ${{ secrets.ECR_REPOSITORY_NAME}}
     run: |
-      docker pull $AWS_REPO
+      docker pull ${{secrets.AWS_ECR_LOGIN_URI}}/${{ secrets.ECR_REPOSITORY_NAME }}:latest
   - name: Run Docker Image to serve users
     run: |
-     export IMAGE_NAME="${{secrets.AWS_ECR_LOGIN_URI}}":latest AWS_ACCESS_KEY_ID="${{ secrets.AWS_ACCESS_KEY_ID }}" AWS_SECRET_ACCESS_KEY="${{ secrets.AWS_SECRET_ACCESS_KEY }}" AWS_DEFAULT_REGION=${{ secrets.AWS_REGION }} BUCKET_NAME=${{ secrets.BUCKET_NAME }} "MONGO_DB_URL=${{ secrets.MONGO_DB_URL }}" && docker compose up -d
+      export IMAGE_NAME="${{secrets.AWS_ECR_LOGIN_URI}}"/"${{ secrets.ECR_REPOSITORY_NAME }}":latest AWS_ACCESS_KEY_ID="${{ secrets.AWS_ACCESS_KEY_ID }}" AWS_SECRET_ACCESS_KEY="${{ secrets.AWS_SECRET_ACCESS_KEY }}" AWS_DEFAULT_REGION=${{ secrets.AWS_REGION }} BUCKET_NAME=${{ secrets.BUCKET_NAME }} "MONGO_DB_URL=${{ secrets.MONGO_DB_URL }}" && docker compose up -d
   - name: Docker System Prune to Remove Old Images
     run: |
       docker system prune -f
+
+
+
+
 
 
